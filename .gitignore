@@ -3,6 +3,12 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+#Word extensions
+*.dot
+*.dotx
+*.docm
+*.dotm
+
 # C extensions
 *.so
 
