@@ -1,0 +1,5 @@
+names:
+- apple
+nc: 1
+train: D:/MASTERS/Year 2/Machine Vision/Assignment/MinneApple/counting/train/images
+val: D:/MASTERS/Year 2/Machine Vision/Assignment/MinneApple/counting/val/images
