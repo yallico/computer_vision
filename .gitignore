@@ -1,3 +1,8 @@
+#Data folders
+acfr-multifruit-2016/
+KFuji_RGB-DS_dataset/
+data-collection/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
