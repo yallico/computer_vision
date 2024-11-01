@@ -2,6 +2,7 @@ import os
 import shutil
 from PIL import Image
 import pandas as pd
+import re
 
 source_folders = ["acfr-multifruit-2016", "KFuji_RGB-DS_dataset"]
 target_folder = "data-collection"
@@ -24,14 +25,14 @@ def process_acfr_annotations(filepath, target_path):
     df.to_csv(target_path, index = False)
 
 def process_kfuji_annotations(filepath, target_path):
-    df = pd.read_csv(filepath, header=None, names=["id", "xmin", "ymin", "xmax", "ymax", "label"])
+    df = pd.read_csv(filepath, header=None, names=["id", "xmin", "ymin", "width", "height", "label"])
     # calculate the center x and y coordinates
-    df["c-x"] = (df["xmin"] + df["xmax"]) / 2
-    df["c-y"] = (df["ymin"] + df["ymax"]) / 2
-    # calculate radius from width (assuming the bounding box width equals height)
-    df["radius"] = round(((df["xmax"] - df["xmin"]) / 2),2)
-    df["c-x"] =  round(df["c-x"],1)
-    df["c-y"] =  round(df["c-y"],1)
+    df["c-x"] = (df["xmin"] + df["width"]) / 2
+    df["c-y"] = (df["ymin"] + df["height"]) / 2
+    # approximate radius using the average of width and height
+    df["radius"] = round((((df["width"]/2) + (df["height"]/2)) / 2), 2)
+    df["c-x"] =  round(df["c-x"],2)
+    df["c-y"] =  round(df["c-y"],2)
     df = df[["c-x", "c-y", "radius"]].reset_index(drop=True)
     df.to_csv(target_path, index_label="#item")
 
@@ -48,9 +49,12 @@ for source in source_folders:
                     process_kfuji_annotations(source_path, target_csv_path)
             # convert and save images as .png in images folder
             elif file.endswith((".jpg", ".png")):
+                pattern = r".*RGBp\.jpg$"
+                if bool(re.match(pattern, file)):
+                    continue
                 image = Image.open(source_path)
                 # convert to .png if it's a .jpg file
                 target_image_path = os.path.join(images_folder, f"{os.path.splitext(file)[0]}.png")
                 image.save(target_image_path, format="PNG")
 
-print("Data consolidation and image conversion completed successfully.")
+print("Data and image conversion completed successfully.")
