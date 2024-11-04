@@ -14,7 +14,7 @@ Data from the above sources was put together in a single folder available on the
 
 ## CSRNet Initial Checkpoints
 
-Model Checkpoint 0, KFuji dataset for training: [OneDrive](https://uob-my.sharepoint.com/:u:/r/personal/pe22304_bristol_ac_uk/Documents/Machine%20Vision/CSRNet/0model.pth.tar?csf=1&web=1&e=bAdQzu)
-Model Checkpoint 1, our dataset for training: [OneDrive](https://uob-my.sharepoint.com/:u:/r/personal/pe22304_bristol_ac_uk/Documents/Machine%20Vision/CSRNet/1model.pth.tar?csf=1&web=1&e=Paav2f)
+ - Model Checkpoint 0, KFuji dataset for training: [OneDrive](https://uob-my.sharepoint.com/:u:/r/personal/pe22304_bristol_ac_uk/Documents/Machine%20Vision/CSRNet/0model.pth.tar?csf=1&web=1&e=bAdQzu)
+ - Model Checkpoint 1, our dataset for training: [OneDrive](https://uob-my.sharepoint.com/:u:/r/personal/pe22304_bristol_ac_uk/Documents/Machine%20Vision/CSRNet/1model.pth.tar?csf=1&web=1&e=Paav2f)
 
 To use the checkpoints you will need to clone the Github Repo for CSRNet as it contains the model file. If anyone is interested in doing this and require assistance please let me (Colm) know.
