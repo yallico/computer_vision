@@ -27,8 +27,8 @@ def process_acfr_annotations(filepath, target_path):
 def process_kfuji_annotations(filepath, target_path):
     df = pd.read_csv(filepath, header=None, names=["id", "xmin", "ymin", "width", "height", "label"])
     # calculate the center x and y coordinates
-    df["c-x"] = (df["xmin"] + df["width"]) / 2
-    df["c-y"] = (df["ymin"] + df["height"]) / 2
+    df["c-x"] = df["xmin"] + (df["width"] / 2)
+    df["c-y"] = df["ymin"] + (df["height"] / 2)
     # approximate radius using the average of width and height
     df["radius"] = round((((df["width"]/2) + (df["height"]/2)) / 2), 2)
     df["c-x"] =  round(df["c-x"],2)
