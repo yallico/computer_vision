@@ -21,7 +21,7 @@ def classify_apple_color(hue_values, red_hue_range, green_hue_range):
 
     red_pixels = np.sum((hue_values >= red_hue_range[0]) & (hue_values <= red_hue_range[1])) + np.sum((hue_values >= red_hue_range[2]) & (hue_values <= red_hue_range[3]))
     green_pixels = np.sum((hue_values >= green_hue_range[0]) & (hue_values <= green_hue_range[1]))
-    label = 'red' if red_pixels > green_pixels or red_pixels/len(hue_values) > 0.04 else 'green'
+    label = 'red' if red_pixels > green_pixels or red_pixels/len(hue_values) > 0.15 else 'green'
 
     return label
 
@@ -33,7 +33,7 @@ green_hue_range = [35, 75]
 brightness_mean_values = []
 
 # sample images for validation
-sampled_files = random.sample(os.listdir(annotations_dir), 10)
+sampled_files = random.sample(os.listdir(annotations_dir), 15)
 
 # for each annotation file
 for annotation_file in os.listdir(annotations_dir):
@@ -81,7 +81,7 @@ for annotation_file in os.listdir(annotations_dir):
             brightness_mean_values.append(brightness_mean)
             
             # classify apply
-            if brightness_mean < 68 or brightness_mean > 238: #calculated after plot
+            if brightness_mean < 50 or brightness_mean > 223: #calculated after plot
                 label = 'undefined'
                 undefined_count += 1
                 color = (128, 128, 128) 
@@ -96,12 +96,12 @@ for annotation_file in os.listdir(annotations_dir):
                     color = (0, 255, 0)
 
             #draw the bounding circle
-            cv2.circle(img, (x_center, y_center), radius, color, 2)
+            cv2.circle(img, (x_center, y_center), radius, color, 1)
             
             labels.append(label)
 
         df['label'] = labels
-        #df.to_csv(os.path.join(annotations_dir, annotation_file), index=False) #uncomments to overwrite data
+        df.to_csv(os.path.join(annotations_dir, annotation_file), index=False) #uncomments to overwrite data
         #sample images
         if annotation_file in sampled_files:
             processed_images.append((image_path, img))
@@ -111,36 +111,42 @@ q1 = np.percentile(brightness_mean_values, 25)
 q3 = np.percentile(brightness_mean_values, 75)
 iqr = q3 - q1
 
-# Define thresholds based on IQR
-low_brightness_threshold = q1 - 0.5 * iqr
-high_brightness_threshold = q3 + 0.5 * iqr
-
-print(f"Low brightness threshold: {round(low_brightness_threshold,0)}")
-print(f"High brightness threshold: {round(high_brightness_threshold,0)}")
+# note: we can't use IQR because its a bimodal distribution
 
 # Plot the brightness distribution with thresholds
 plt.figure(figsize=(10, 6))
 sns.histplot(brightness_mean_values, bins=30, kde=True, color="skyblue", edgecolor="black")
-plt.axvline(low_brightness_threshold, color='red', linestyle='--', label='Low Threshold')
-plt.axvline(high_brightness_threshold, color='green', linestyle='--', label='High Threshold')
-plt.title('Brightness Distribution of Bounding Circles')
-plt.xlabel('Brightness (Value component)')
+plt.axvline(50, color='red', linestyle='--', label='Low Threshold')
+plt.axvline(223, color='green', linestyle='--', label='High Threshold')
+plt.title('Brightness Distribution In Bounding Circles')
+plt.xlabel('Brightness (V-component)')
 plt.ylabel('Frequency')
 plt.legend()
 plt.grid(axis='y', linestyle='--', alpha=0.7)
-#plt.show()
+plt.show()
 
 # Output the split between red and green apples
 print(f"Total red apples: {red_count}")
 print(f"Total green apples: {green_count}")
 print(f"Total undefined apples: {undefined_count}")
 print(f"Red to green split: {round(red_count/green_count,2)}")
-print("done")
 
 output_dir = "./Sample/"
+
+# clear sample
+for file in os.listdir(output_dir):
+    file_path = os.path.join(output_dir, file)
+    try:
+        if os.path.isfile(file_path):
+            os.remove(file_path)
+    except Exception as e:
+        print(f"Error deleting file {file_path}: {e}")
+
 os.makedirs(output_dir, exist_ok=True)
 for i, (name, processed_img) in enumerate(processed_images):
     base_name = '.'.join(os.path.basename(name).split('.')[:-1])
     output_path = os.path.join(output_dir, f"{base_name}_labeled.png")
     cv2.imwrite(output_path, processed_img)
     print(f"Saved: {output_path}")
+
+print("done")
