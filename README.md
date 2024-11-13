@@ -2,6 +2,10 @@
 
 To access the overleaf document please use: [Overleaf](https://www.overleaf.com/8895935383kvmprmwxdckv#2317ff)
 
+## Project Planner
+
+Available here: [OneDrive](https://uob-my.sharepoint.com/:x:/r/personal/pe22304_bristol_ac_uk/Documents/Gantt%20Template.xlsx?d=w70b98232ed6546a09e9749026d91282d&csf=1&web=1&e=tdqRx1)
+
 ## Datasets
 
 - [ACFR Orchard Fruit Dataset](https://data.acfr.usyd.edu.au/ag/treecrops/2016-multifruit/) - 1120 images with circle annotations
