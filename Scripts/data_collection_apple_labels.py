@@ -101,7 +101,7 @@ for annotation_file in os.listdir(annotations_dir):
             labels.append(label)
 
         df['label'] = labels
-        df.to_csv(os.path.join(annotations_dir, annotation_file), index=False) #uncomments to overwrite data
+        #df.to_csv(os.path.join(annotations_dir, annotation_file), index=False) #uncomments to overwrite data
         #sample images
         if annotation_file in sampled_files:
             processed_images.append((image_path, img))
@@ -118,12 +118,12 @@ plt.figure(figsize=(10, 6))
 sns.histplot(brightness_mean_values, bins=30, kde=True, color="skyblue", edgecolor="black")
 plt.axvline(50, color='red', linestyle='--', label='Low Threshold')
 plt.axvline(223, color='green', linestyle='--', label='High Threshold')
-plt.title('Brightness Distribution In Bounding Circles')
 plt.xlabel('Brightness (V-component)')
 plt.ylabel('Frequency')
 plt.legend()
 plt.grid(axis='y', linestyle='--', alpha=0.7)
-plt.show()
+plt.savefig("./Documentation/brightness_distribution.pdf", format='pdf', bbox_inches='tight')
+#plt.show()
 
 # Output the split between red and green apples
 print(f"Total red apples: {red_count}")
