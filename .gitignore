@@ -5,6 +5,7 @@ data-collection/
 
 #Personal settings
 .vscode/
+pre-processed/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
