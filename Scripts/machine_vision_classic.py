@@ -1,12 +1,17 @@
 import os
 import random
 from functions import *
-from data_statistics import process_csv_files
+from data_statistics import *
 from tqdm import tqdm
 
 num_samples = 20  #sample for validation
 image_dir = 'data-collection/images'
 all_images = [os.path.join(image_dir, img) for img in os.listdir(image_dir) if img.endswith('.png')]
+
+#ingest annotations and combine in single df
+folder_path = "data-collection/annotations/"
+combined_df = process_csv_files(folder_path)
+print(combined_df.describe(include='all'))
 
 #seed shuffle for repeatability
 random.seed(42)
@@ -55,7 +60,7 @@ for img_path in tqdm(keypoints_dict.keys()):
 
     # Extract mean HSV values for each apple
     for circle in apple_circles:
-        mean_hsv = extract_mean_hsv(img_path, circle)
+        mean_hsv = extract_mean_hsv(f"{image_dir}/{img_path.split('/')[2]}", circle)
         hsv_features.append(mean_hsv)
         apple_indices.append((img_path, circle))
 
@@ -66,16 +71,67 @@ for img_path in tqdm(keypoints_dict.keys()):
 labels, kmeans = perform_kmeans_clustering(hsv_features, n_clusters=3) #k-means clustering
 print("Cluster Centers (HSV):")
 for idx, center in enumerate(kmeans.cluster_centers_):
-    print(f"Cluster {idx}: H={center[0]:.2f}, S={center[1]:.2f}, V={center[2]:.2f}")
+    print(f"Cluster {idx}: H={center[0]:.2f}, S={center[1]:.2f}")
 cluster_labels = assign_cluster_labels(kmeans) # labels assignment
 #update apple_labels
 apple_labels = {}
 for idx, (image_file, circle) in enumerate(apple_indices):
     cluster_idx = labels[idx]
     color_label = cluster_labels[cluster_idx]
-    if image_file not in apple_labels:
-        apple_labels[image_file] = []
-    apple_labels[image_file].append((circle, color_label))
+    image_name = image_file.split('/')[2]
+    if image_name not in apple_labels:
+        apple_labels[image_name.replace("RGBhr", "RGB")] = []
+    apple_labels[image_name.replace("RGBhr", "RGB")].append((circle, color_label))
 
+#Get ground truth data
+ground_truth_counts = combined_df.groupby('image')['radius'].count().to_dict()
+ground_truth_apples = combined_df.groupby('image')[['c-x', 'c-y', 'radius']].apply(lambda x: x.values.tolist()).to_dict()
+ground_truth_labels = combined_df.groupby('image')['label'].apply(lambda x: x.values.tolist()).to_dict()
+
+#Metric evaluation: RSME
+per_image_rmse, total_rmse = calculate_rmse_counts(detections, ground_truth_counts)
+print(f"RMSE per image: {total_rmse}")   
+
+#Metric evaluation: IoU
+all_matches = {}           # {image_name: [(pred_idx, gt_idx), ...]}
+all_unmatched_pred = {}    # {image_name: [list_of_pred_idx]}
+all_unmatched_gt = {}      # {image_name: [list_of_gt_idx]}
+iou_results = {}           # {image_name: [IoU_values]}
+labels_train = []
+labels_pred = []
+
+for image_name, predicted_apples in apple_labels.items():
+    predicted_circles = [p[0] for p in predicted_apples]  #extract just (x, y, r)
+    gt_circles = ground_truth_apples.get(image_name, [])
+
+    # Run matching for this image
+    matches, unmatched_pred, unmatched_gt = match_apples_by_min_distance(predicted_circles, gt_circles)
+
+    # Store results
+    all_matches[image_name] = matches
+    all_unmatched_pred[image_name] = unmatched_pred
+    all_unmatched_gt[image_name] = unmatched_gt
+
+    #IoU
+    iou_values = []
+
+    for (pred_idx, gt_idx) in matches:
+        pred_circle = predicted_circles[pred_idx]
+        gt_circle = gt_circles[gt_idx]
+        #IoU
+        iou_val = circle_iou(pred_circle, gt_circle)
+        iou_values.append(iou_val)
+        # Classification: compare predicted_label vs ground_truth_labels
+        predicted_label = predicted_apples[pred_idx][1]
+        true_label = ground_truth_labels[image_name][gt_idx]
+        labels_train.append(true_label)
+        labels_pred.append(predicted_label)
+    
+    iou_results[image_name] = iou_values
+
+print(f"Mean IoU: {np.mean([np.mean(v) for v in iou_results.values() if len(v) > 0])}")
+
+#Metric evaluation: Classification
+class_metric = compute_classification_metrics(labels_pred, labels_train)
 
 print("Done")

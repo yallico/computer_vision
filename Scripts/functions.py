@@ -222,11 +222,12 @@ def segment_apples(image_path, keypoints=None, save_visualization=False, save_di
 
     return apple_circles
 
-def extract_mean_hsv(image, circle):
+def extract_mean_hsv(image_path, circle):
     """
     Extract the mean HSV values from the area within the circle.
     """
     x, y, r = circle
+    image = cv2.imread(image_path)
     mask = np.zeros(image.shape[:2], dtype=np.uint8)
     cv2.circle(mask, (x, y), r, 255, -1)
 
@@ -247,7 +248,7 @@ def perform_kmeans_clustering(hsv_features, n_clusters=3):
     """
     hsv_features = np.array(hsv_features)
     kmeans = KMeans(n_clusters=n_clusters, random_state=42)
-    labels = kmeans.fit_predict(hsv_features)
+    labels = kmeans.fit_predict(hsv_features[:, :2]) #only use HUE and saturation for labels
     return labels, kmeans
 
 def assign_cluster_labels(kmeans):
