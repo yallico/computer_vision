@@ -4,7 +4,7 @@ from functions import *
 from data_statistics import *
 from tqdm import tqdm
 
-num_samples = 20  #sample for validation
+num_samples = 30  #sample for validation
 image_dir = 'data-collection/images'
 all_images = [os.path.join(image_dir, img) for img in os.listdir(image_dir) if img.endswith('.png')]
 
@@ -32,29 +32,42 @@ vis_dir_feature = 'pre-processed/sample'
 sample_images = random.sample(all_images, num_samples) #sample for visualization
 roi_mask_train = process_and_save_images(train_images, train_dir, vis_dir_feature, sample_images)
 roi_mask_test = process_and_save_images(test_images, test_dir, vis_dir_feature, sample_images)
+sample_images = [img for img in os.listdir(vis_dir_feature) if img.endswith('.png')] #update sample paths
+
+no_masks_train = len([x for x in roi_mask_train.values() if x is None])
+
+print("Image Pre-processing:")
+print(f"out of: {len(roi_mask_train)} images, {no_masks_train} images have no Mask/RIO")
+print(f"the ratio of images with no masks is: {no_masks_train/len(roi_mask_train):.2f}")
 
 #extract features
 image_paths = [os.path.join(train_dir, img) for img in os.listdir(train_dir) if img.endswith('.png')]
-vis_dir_feature = 'sample-features/'
+vis_dir_feature = 'sample-features'
 keypoints_dict = {}
 all_descriptors = []
 
 for img_path in tqdm(image_paths):
-    save_vis = img_path in sample_images
+    save_vis = img_path.split('/')[2] in sample_images
     keypoints, descriptors = extract_and_filter_features(
         img_path, save_visualization=save_vis, save_dir=vis_dir_feature, mask=roi_mask_train[os.path.basename(img_path)]
     )
     keypoints_dict[img_path] = keypoints
     all_descriptors.append(descriptors)
 
+no_keypoints = len([x for x in keypoints_dict.values() if len(x) == 0])
+
+print("Feature Extraction:")
+print(f"out of: {len(keypoints_dict)} images, {no_keypoints} images have no keypoints detected.")
+print(f"the ratio of images with no keypoints is: {no_keypoints/len(keypoints_dict):.2f}")
+
 #segment features using circle shape detection
-vis_dir_segment = 'sample-segment/'
+vis_dir_segment = 'sample-segment'
 detections = {}
 hsv_features = [] #mean hsv values for circles
 apple_indices = []  #for tracking the apple indices
 
 for img_path in tqdm(keypoints_dict.keys()):
-    save_vis = img_path in sample_images
+    save_vis = img_path.split('/')[2] in sample_images
     # Segment apples in the image
     apple_circles = segment_apples(img_path, keypoints=keypoints_dict[img_path], save_visualization=save_vis, save_dir=vis_dir_segment)
 

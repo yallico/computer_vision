@@ -6,6 +6,8 @@ import numpy as np
 import random
 import os
 import re
+from mpl_toolkits.mplot3d import Axes3D
+from sklearn.neighbors import KNeighborsClassifier
 
 # paths
 images_dir = './data-collection/images/'
@@ -16,6 +18,10 @@ green_count = 0
 undefined_count = 0
 
 processed_images = []
+brightness_mean_values = []
+
+apple_pixels = []
+non_apple_pixels = []
 
 def classify_apple_color(hue_values, red_hue_range, green_hue_range):
 
@@ -28,9 +34,6 @@ def classify_apple_color(hue_values, red_hue_range, green_hue_range):
 # hue ranges for red and green for opencv
 red_hue_range = [0, 25, 145, 180]
 green_hue_range = [35, 75]
-
-#mean brightness of masks
-brightness_mean_values = []
 
 # sample images for validation
 sampled_files = random.sample(os.listdir(annotations_dir), 15)
@@ -63,6 +66,9 @@ for annotation_file in os.listdir(annotations_dir):
         df = pd.read_csv(os.path.join(annotations_dir, annotation_file))
         labels = []
 
+        #mask for all apples in this image
+        full_mask = np.zeros((img.shape[0], img.shape[1]), dtype=np.uint8)
+
         for _, row in df.iterrows():
             # get co-ordinates for apple
             x_center, y_center = int(row['c-x']), int(row['c-y'])
@@ -71,22 +77,22 @@ for annotation_file in os.listdir(annotations_dir):
             # mask circle for the circular region
             mask = np.zeros((img.shape[0], img.shape[1]), dtype=np.uint8)
             cv2.circle(mask, (x_center, y_center), radius, 1, -1)
+            full_mask[mask == 1] = 1
             # get pixels from the circle
-            apple_pixels = hsv_img[mask == 1]
+            apple_pixels_current = hsv_img[mask == 1]
+            apple_pixels.extend(apple_pixels_current) #for K-NN
             
-            # get hue values
-            hue_values = apple_pixels[:, 0]
             # get brightness values
-            brightness_mean = np.mean(apple_pixels[:, 2])
+            brightness_mean = np.mean(apple_pixels_current[:, 2])
             brightness_mean_values.append(brightness_mean)
             
-            # classify apply
+            #label apply
             if brightness_mean < 50 or brightness_mean > 223: #calculated after plot
                 label = 'undefined'
                 undefined_count += 1
                 color = (128, 128, 128) 
             else:
-                hue_values = apple_pixels[:, 0]
+                hue_values = apple_pixels_current[:, 0]
                 label = classify_apple_color(hue_values, red_hue_range, green_hue_range)
                 if label == 'red':
                     red_count += 1
@@ -102,14 +108,28 @@ for annotation_file in os.listdir(annotations_dir):
 
         df['label'] = labels
         #df.to_csv(os.path.join(annotations_dir, annotation_file), index=False) #uncomments to overwrite data
+
+        #non-apple pixels for K-NN (only works with a good computer, lots of ram needed)
+        # if len(non_apple_candidates[0]) > 0:
+        #     non_apple_pix = hsv_img[non_apple_candidates[0], non_apple_candidates[1]]
+        #     non_apple_pixels.extend(non_apple_pix)
+
+        non_apple_candidates = np.where(full_mask == 0)
+        if len(non_apple_candidates[0]) > 0:
+            #limit samples per image to avoid crashing
+            samples_needed = min(250, len(non_apple_candidates[0]))
+            idxs = np.random.choice(len(non_apple_candidates[0]), samples_needed, replace=False)
+            non_apple_pix = hsv_img[non_apple_candidates[0][idxs], non_apple_candidates[1][idxs]]
+            non_apple_pixels.extend(non_apple_pix)
+
         #sample images
         if annotation_file in sampled_files:
             processed_images.append((image_path, img))
 
 # Calculate the IQR for brightness values
-q1 = np.percentile(brightness_mean_values, 25)
-q3 = np.percentile(brightness_mean_values, 75)
-iqr = q3 - q1
+# q1 = np.percentile(brightness_mean_values, 25)
+# q3 = np.percentile(brightness_mean_values, 75)
+# iqr = q3 - q1
 
 # note: we can't use IQR because its a bimodal distribution
 
@@ -148,5 +168,55 @@ for i, (name, processed_img) in enumerate(processed_images):
     output_path = os.path.join(output_dir, f"{base_name}_labeled.png")
     cv2.imwrite(output_path, processed_img)
     print(f"Saved: {output_path}")
+
+print("Finished labelling data")
+
+######K-NN and hsv analysis
+
+apple_pixels = np.array(apple_pixels)
+non_apple_pixels = np.array(non_apple_pixels)
+
+#labels: 1 for apple, 0 for non-apple
+X = np.vstack((apple_pixels, non_apple_pixels))
+y = np.array([1]*len(apple_pixels) + [0]*len(non_apple_pixels))
+
+#shuffle data to avoid bias
+p = np.random.permutation(len(X))
+X, y = X[p], y[p]
+
+#fit K-NN on all data
+# knn = KNeighborsClassifier(n_neighbors=5)
+# knn.fit(X, y)
+
+#3D Plot of data subset
+plot_samples = min(2000, len(X))
+X_plot = X[:plot_samples]
+y_plot = y[:plot_samples]
+
+fig = plt.figure(figsize=(8,6))
+ax = fig.add_subplot(111, projection='3d')
+ax.scatter(X_plot[y_plot==1, 0], X_plot[y_plot==1, 1], X_plot[y_plot==1, 2], c='green', label='Apple', alpha=0.5)
+ax.scatter(X_plot[y_plot==0, 0], X_plot[y_plot==0, 1], X_plot[y_plot==0, 2], c='gray', label='Non-Apple', alpha=0.5)
+ax.set_xlabel('Hue')
+ax.set_ylabel('Saturation')
+ax.set_zlabel('Value')
+ax.legend()
+plt.title('HSV Distribution of Apples vs Non-Apples')
+plt.savefig("./Documentation/hsv_3d_scatter.pdf", format='pdf', bbox_inches='tight')
+plt.close()
+
+# Determine "Best" HSV boundaries from apple pixels
+if len(apple_pixels) > 0:
+    # Use percentiles to exclude extreme outliers
+    hue_min, hue_max = np.percentile(apple_pixels[:,0], [1, 99])
+    sat_min, sat_max = np.percentile(apple_pixels[:,1], [1, 99])
+    val_min, val_max = np.percentile(apple_pixels[:,2], [1, 99])
+
+    print("Proposed HSV bounds for apples:")
+    print(f"Hue: [{hue_min}, {hue_max}]")
+    print(f"Saturation: [{sat_min}, {sat_max}]")
+    print(f"Value: [{val_min}, {val_max}]")
+else:
+    print("No apple pixels found to determine HSV bounds.")
 
 print("done")

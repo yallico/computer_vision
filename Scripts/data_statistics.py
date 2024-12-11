@@ -43,11 +43,11 @@ def calculate_rmse_counts(detections, ground_truth_counts):
 
     for image_name, predicted_apples in detections.items():
         predicted_count = len(predicted_apples)
-        gt_count = ground_truth_counts.get(image_name.split('/')[2], 0)
+        gt_count = ground_truth_counts.get(image_name.split('/')[2].replace('RGBhr','RGB'), 0)
         error = (predicted_count - gt_count)**2
         errors.append(error)
 
-        per_image_rmse[image_name.split('/')[2]] = np.sqrt(error)
+        per_image_rmse[image_name.split('/')[2].replace('RGBhr','RGB')] = np.sqrt(error)
 
     total_rmse = np.sqrt(np.mean(errors)) if errors else 0.0
     return per_image_rmse, total_rmse
