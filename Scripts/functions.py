@@ -3,7 +3,7 @@ import os
 from sklearn.cluster import KMeans
 import numpy as np
 
-def preprocess_image(image_path):
+def preprocess_image(image_path, knn):
     image = cv2.imread(image_path)
     if image is None:
         print(f"Error loading image: {image_path}")
@@ -26,36 +26,36 @@ def preprocess_image(image_path):
 
     #step 5: get region of interest for feature extraction in SIFT
     image_hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+    height, width, _ = image_hsv.shape
+    pixels = image_hsv.reshape(-1, 3)
+    predicted_labels = knn.predict(pixels) #predict labels using knn
+    mask = predicted_labels.reshape(height, width)
+    binary_mask = (mask == 1).astype(np.uint8) * 255
+
     #step 5.1: segment green apples
     #lower_green1 = np.array([85, 0, 50])   #0130320T012914.905227_42.png & 20130320T005916.773278.Cam6_31.png
     #upper_green1 = np.array([179, 105, 255])
-    # lower_green2 = np.array([90, 0, 0])  #(20130320T005740.580816.Cam6_21.png)
-    # upper_green2 = np.array([130, 110, 255])
     #steap 5.2: segment red apples 
-    lower_red1 = np.array([130, 0, 150])   #(BD12_sup_201711_093_09_RGBhr.png) & BD11_inf_201710_081_08_RGBhr.png
-    upper_red1 = np.array([179, 255, 255])
-    lower_red2 = np.array([115, 0, 40])   # 20130320T004608.376022.Cam6_51.png & 20130320T005755.628752.Cam6_23.png
-    upper_red2 = np.array([179, 255, 255]) 
+    # lower_red1 = np.array([130, 0, 150])   #(BD12_sup_201711_093_09_RGBhr.png) & BD11_inf_201710_081_08_RGBhr.png
+    # upper_red1 = np.array([179, 255, 255])
+    # lower_red2 = np.array([115, 0, 40])   # 20130320T004608.376022.Cam6_51.png & 20130320T005755.628752.Cam6_23.png
+    # upper_red2 = np.array([179, 255, 255]) 
     #step 5.3: create mask
     #mask_green1 = cv2.inRange(image_hsv, lower_green1, upper_green1)
-    #mask_green2 = cv2.inRange(image_hsv, lower_green2, upper_green2)
-    mask_red1 = cv2.inRange(image_hsv, lower_red1, upper_red1)
-    mask_red2 = cv2.inRange(image_hsv, lower_red2, upper_red2)
-    #mask_green = cv2.bitwise_or(mask_green1, mask_green2)
-    #mask_green = mask_green1
-    mask_red = cv2.bitwise_or(mask_red1, mask_red2)
-    #mask_all = cv2.bitwise_or(mask_green, mask_red)
-    mask_all = mask_red
+    #mask_red1 = cv2.inRange(image_hsv, lower_red1, upper_red1)
+    #mask_red2 = cv2.inRange(image_hsv, lower_red2, upper_red2)
+    #mask_red = cv2.bitwise_or(mask_red1, mask_red2)
+    #mask_all = mask_red
 
     # Step 5.3.2: Check if the mask is valid
-    if cv2.countNonZero(mask_all) == 0:  # No mask created
+    if cv2.countNonZero(binary_mask) == 0:  # No mask created
         return morph_image, None
 
     #step 5.4: apply mask
-    segment = cv2.bitwise_and(morph_image, morph_image, mask=mask_all)
+    segment = cv2.bitwise_and(morph_image, morph_image, mask=binary_mask)
     #step 5.5: erode and dilate edges to expand non-background regions
     eroded_edges = cv2.erode(segment, np.ones((8, 8), np.uint8), iterations=1)
-    dilated_edges = cv2.dilate(eroded_edges, np.ones((32, 32), np.uint8), iterations=1)
+    dilated_edges = cv2.dilate(eroded_edges, np.ones((30, 30), np.uint8), iterations=1)
     roi_mask = cv2.threshold(dilated_edges, 1, 255, cv2.THRESH_BINARY)[1]
 
     #TODO: currently all hyper parameters are used as default, it required fine-tunning

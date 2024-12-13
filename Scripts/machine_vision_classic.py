@@ -3,6 +3,9 @@ import random
 from functions import *
 from data_statistics import *
 from tqdm import tqdm
+import joblib
+
+knn = joblib.load('knn_model.pkl')
 
 num_samples = 30  #sample for validation
 image_dir = 'data-collection/images'
@@ -10,7 +13,7 @@ all_images = [os.path.join(image_dir, img) for img in os.listdir(image_dir) if i
 
 #ingest annotations and combine in single df
 folder_path = "data-collection/annotations/"
-combined_df = process_csv_files(folder_path)
+combined_df = process_csv_files(folder_path, knn)
 print(combined_df.describe(include='all'))
 
 #seed shuffle for repeatability

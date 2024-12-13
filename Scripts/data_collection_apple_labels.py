@@ -1,5 +1,6 @@
 import cv2
 import matplotlib.pyplot  as plt
+import matplotlib.ticker as ticker
 import seaborn as sns
 import pandas as pd
 import numpy as np
@@ -8,6 +9,8 @@ import os
 import re
 from mpl_toolkits.mplot3d import Axes3D
 from sklearn.neighbors import KNeighborsClassifier
+from matplotlib.colors import hsv_to_rgb
+import joblib
 
 # paths
 images_dir = './data-collection/images/'
@@ -117,7 +120,7 @@ for annotation_file in os.listdir(annotations_dir):
         non_apple_candidates = np.where(full_mask == 0)
         if len(non_apple_candidates[0]) > 0:
             #limit samples per image to avoid crashing
-            samples_needed = min(250, len(non_apple_candidates[0]))
+            samples_needed = min(500, len(non_apple_candidates[0]))
             idxs = np.random.choice(len(non_apple_candidates[0]), samples_needed, replace=False)
             non_apple_pix = hsv_img[non_apple_candidates[0][idxs], non_apple_candidates[1][idxs]]
             non_apple_pixels.extend(non_apple_pix)
@@ -142,7 +145,7 @@ plt.xlabel('Brightness (V-component)')
 plt.ylabel('Frequency')
 plt.legend()
 plt.grid(axis='y', linestyle='--', alpha=0.7)
-plt.savefig("./Documentation/brightness_distribution.pdf", format='pdf', bbox_inches='tight')
+#plt.savefig("./Documentation/brightness_distribution.pdf", format='pdf', bbox_inches='tight')
 #plt.show()
 
 # Output the split between red and green apples
@@ -173,7 +176,16 @@ print("Finished labelling data")
 
 ######K-NN and hsv analysis
 
+desired_ratio = 20  # non-apple:apple
+non_apple_count = len(non_apple_pixels)
+apple_needed = non_apple_count // desired_ratio  # integer division for simplicity
+print(f"Non-apple pixels available: {non_apple_count}")
+print(f"Apple pixels needed for 20:1 ratio: {apple_needed}")
+
+# Downsample apple pixels
 apple_pixels = np.array(apple_pixels)
+p = np.random.permutation(len(apple_pixels))
+apple_pixels = apple_pixels[p[:apple_needed]]
 non_apple_pixels = np.array(non_apple_pixels)
 
 #labels: 1 for apple, 0 for non-apple
@@ -185,38 +197,74 @@ p = np.random.permutation(len(X))
 X, y = X[p], y[p]
 
 #fit K-NN on all data
-# knn = KNeighborsClassifier(n_neighbors=5)
-# knn.fit(X, y)
+knn = KNeighborsClassifier(n_neighbors=30, algorithm='kd_tree')
+knn.fit(X, y)
+#save model
+joblib.dump(knn, 'Scripts/knn_model.pkl')
 
-#3D Plot of data subset
-plot_samples = min(2000, len(X))
-X_plot = X[:plot_samples]
-y_plot = y[:plot_samples]
+h_vals = np.arange(0, 181, 1)
+s_vals = np.arange(0, 256, 5)
+v_vals = np.arange(0, 256, 5)
 
-fig = plt.figure(figsize=(8,6))
+H, S, V = np.meshgrid(h_vals, s_vals, v_vals, indexing='ij')
+grid_points = np.column_stack((H.flatten(), S.flatten(), V.flatten()))
+
+# Predict with K-NN
+pred_labels = knn.predict(grid_points)
+
+# Extract only the points predicted as apple
+apple_points = grid_points[pred_labels == 1]
+non_apple_points = grid_points[pred_labels == 0]
+
+#normalize S and V to [0,1]
+H_apple = apple_points[:,0]
+S_apple = apple_points[:,1] / 255.0
+V_apple = apple_points[:,2] / 255.0
+
+H_full = H_apple * 2  
+H_rad = np.deg2rad(H_full) #convert to radians
+#convert to Cartesian
+S_constrained = S_apple * V_apple
+X = S_constrained * np.cos(H_rad)
+Y = S_constrained * np.sin(H_rad)
+Z = V_apple * 2
+
+fig = plt.figure(figsize=(10,8)) 
 ax = fig.add_subplot(111, projection='3d')
-ax.scatter(X_plot[y_plot==1, 0], X_plot[y_plot==1, 1], X_plot[y_plot==1, 2], c='green', label='Apple', alpha=0.5)
-ax.scatter(X_plot[y_plot==0, 0], X_plot[y_plot==0, 1], X_plot[y_plot==0, 2], c='gray', label='Non-Apple', alpha=0.5)
+
+theta = np.linspace(0, 2*np.pi, 72)  # angular resolution
+z = np.linspace(0, 2, 20)             # height resolution
+Theta, Z_mesh = np.meshgrid(theta, z)      # Create 2D grid for angle and height
+R = Z_mesh / 2  # Radius decreases as height decreases (cone shape)
+X_mesh = R * np.cos(Theta)
+Y_mesh = R * np.sin(Theta)
+
+#plot
+ax.plot_surface(X_mesh, Y_mesh, Z_mesh, color='gray', alpha=0.1, edgecolor='black', linewidth=0.05)
+
+# Normalize H, S, V values for conversion
+H_norm = H_apple / 180.0 
+hsv_col = np.column_stack((H_norm, S_apple, V_apple))
+rgb_values = hsv_to_rgb(hsv_col)
+
+# Plot the apple points inside the cone
+ax.scatter(X, Y, Z, c=rgb_values, alpha=0.9, s=1)
+
+ax.tick_params(axis='both', which='major', labelsize=9)
+ax.zaxis.set_major_locator(ticker.MaxNLocator(integer=True))
+ax.xaxis.set_major_locator(ticker.MaxNLocator(integer=True))
+ax.yaxis.set_major_locator(ticker.MaxNLocator(integer=True))
+
 ax.set_xlabel('Hue')
 ax.set_ylabel('Saturation')
-ax.set_zlabel('Value')
-ax.legend()
-plt.title('HSV Distribution of Apples vs Non-Apples')
-plt.savefig("./Documentation/hsv_3d_scatter.pdf", format='pdf', bbox_inches='tight')
-plt.close()
+ax.set_zlabel('Brightness')
 
-# Determine "Best" HSV boundaries from apple pixels
-if len(apple_pixels) > 0:
-    # Use percentiles to exclude extreme outliers
-    hue_min, hue_max = np.percentile(apple_pixels[:,0], [1, 99])
-    sat_min, sat_max = np.percentile(apple_pixels[:,1], [1, 99])
-    val_min, val_max = np.percentile(apple_pixels[:,2], [1, 99])
+ax.view_init(elev=30, azim=135)
 
-    print("Proposed HSV bounds for apples:")
-    print(f"Hue: [{hue_min}, {hue_max}]")
-    print(f"Saturation: [{sat_min}, {sat_max}]")
-    print(f"Value: [{val_min}, {val_max}]")
-else:
-    print("No apple pixels found to determine HSV bounds.")
+plt.title('Apple Pixels (HSV) KNN Predictions')
+#plt.show()
+
+plt.savefig("./Documentation/hsv_cone_with_apple_points.pdf", format='pdf', bbox_inches='tight')
+#plt.close()
 
 print("done")
