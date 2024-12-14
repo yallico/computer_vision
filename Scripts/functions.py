@@ -2,12 +2,14 @@ import cv2
 import os
 from sklearn.cluster import KMeans
 import numpy as np
+from data_collection_apple_labels import classify_apple_color, red_hue_range, green_hue_range
 
-def preprocess_image(image_path, knn):
+def preprocess_image(image_path, knn, scale_factor = 0.1):
     image = cv2.imread(image_path)
     if image is None:
         print(f"Error loading image: {image_path}")
         return None, None
+    original_height, original_width = image.shape[:2]
 
     #step 1: convert to Grayscale
     gray_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
@@ -25,40 +27,28 @@ def preprocess_image(image_path, knn):
     morph_image = cv2.morphologyEx(blurred_image, cv2.MORPH_OPEN, kernel)
 
     #step 5: get region of interest for feature extraction in SIFT
-    image_hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+    new_width = int(original_width * scale_factor)
+    new_height = int(original_height * scale_factor)
+    resized_image = cv2.resize(image, (new_width, new_height)) #resize the image to a smaller resolution
+    image_hsv = cv2.cvtColor(resized_image, cv2.COLOR_BGR2HSV)
     height, width, _ = image_hsv.shape
     pixels = image_hsv.reshape(-1, 3)
     predicted_labels = knn.predict(pixels) #predict labels using knn
     mask = predicted_labels.reshape(height, width)
     binary_mask = (mask == 1).astype(np.uint8) * 255
-
-    #step 5.1: segment green apples
-    #lower_green1 = np.array([85, 0, 50])   #0130320T012914.905227_42.png & 20130320T005916.773278.Cam6_31.png
-    #upper_green1 = np.array([179, 105, 255])
-    #steap 5.2: segment red apples 
-    # lower_red1 = np.array([130, 0, 150])   #(BD12_sup_201711_093_09_RGBhr.png) & BD11_inf_201710_081_08_RGBhr.png
-    # upper_red1 = np.array([179, 255, 255])
-    # lower_red2 = np.array([115, 0, 40])   # 20130320T004608.376022.Cam6_51.png & 20130320T005755.628752.Cam6_23.png
-    # upper_red2 = np.array([179, 255, 255]) 
-    #step 5.3: create mask
-    #mask_green1 = cv2.inRange(image_hsv, lower_green1, upper_green1)
-    #mask_red1 = cv2.inRange(image_hsv, lower_red1, upper_red1)
-    #mask_red2 = cv2.inRange(image_hsv, lower_red2, upper_red2)
-    #mask_red = cv2.bitwise_or(mask_red1, mask_red2)
-    #mask_all = mask_red
-
-    # Step 5.3.2: Check if the mask is valid
     if cv2.countNonZero(binary_mask) == 0:  # No mask created
         return morph_image, None
+    resized_mask = cv2.resize(
+        binary_mask, (original_width, original_height), interpolation=cv2.INTER_NEAREST
+        )
 
     #step 5.4: apply mask
-    segment = cv2.bitwise_and(morph_image, morph_image, mask=binary_mask)
+    segment = cv2.bitwise_and(morph_image, morph_image, mask=resized_mask)
     #step 5.5: erode and dilate edges to expand non-background regions
     eroded_edges = cv2.erode(segment, np.ones((8, 8), np.uint8), iterations=1)
     dilated_edges = cv2.dilate(eroded_edges, np.ones((30, 30), np.uint8), iterations=1)
+    #TODO: currently erode/dilate is heuristic, it required fine-tunning
     roi_mask = cv2.threshold(dilated_edges, 1, 255, cv2.THRESH_BINARY)[1]
-
-    #TODO: currently all hyper parameters are used as default, it required fine-tunning
 
     #check for ROI mask
     if cv2.countNonZero(roi_mask) == 0:
@@ -66,12 +56,12 @@ def preprocess_image(image_path, knn):
 
     return morph_image, roi_mask
 
-def process_and_save_images(image_paths, save_dir, sample_dir, sample_files, save_visualization=False):
+def process_and_save_images(image_paths, save_dir, sample_dir, sample_files, knn, save_visualization=False):
     masks = {}
 
     for img_path in image_paths:
         save_visualization = img_path in sample_files #check if file is in sample
-        processed_image, mask = preprocess_image(img_path)
+        processed_image, mask = preprocess_image(img_path, knn)
 
         if processed_image is not None:
             #save path
@@ -238,9 +228,9 @@ def segment_apples(image_path, keypoints=None, save_visualization=False, save_di
 
     return apple_circles
 
-def extract_mean_hsv(image_path, circle):
+def extract_hsv(image_path, circle):
     """
-    Extract the mean HSV values from the area within the circle.
+    Extract the HSV values from the area within the circle.
     """
     x, y, r = circle
     image = cv2.imread(image_path)
@@ -250,60 +240,12 @@ def extract_mean_hsv(image_path, circle):
     #extract the HSV image
     hsv_image = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
     #calculate the mean HSV values within the circle
-    mean_hsv = cv2.mean(hsv_image, mask=mask)[:3]
+    hsv_values = hsv_image[mask == 255]
 
-    return np.array(mean_hsv)
+    return hsv_values
 
-def perform_kmeans_clustering(hsv_features, n_clusters=3):
-    """
-    Perform k-means clustering on HSV features.
-
-    Parameters:
-    - hsv_features: list of all hsv vectors.
-    - n_clusters: Number of clusters (default is 3).
-    """
-    hsv_features = np.array(hsv_features)
-    kmeans = KMeans(n_clusters=n_clusters, random_state=42)
-    labels = kmeans.fit_predict(hsv_features[:, :2]) #only use HUE and saturation for labels
-    return labels, kmeans
-
-def assign_cluster_labels(kmeans):
-    """
-    Assign labels to clusters based on the mean Hue value.
-    """
-    cluster_labels = {}
-    cluster_centers = kmeans.cluster_centers_
-
-    for idx, center in enumerate(cluster_centers):
-        hue = center[0]
-        if (hue < 10) or (hue > 160):
-            cluster_labels[idx] = 'red'
-        elif 35 < hue < 85:
-            cluster_labels[idx] = 'green'
-        else:
-            cluster_labels[idx] = 'undefined'
-
-    return cluster_labels
-
-import pandas as pd
-
-def create_classification_dataframe(apple_labels):
-    """
-    create a pandas DataFrame from the classification results.
-    """
-    rows = []
-    for image_name, apples in apple_labels.items():
-        for apple in apples:
-            circle, label = apple
-            x, y, r = circle
-            rows.append({
-                'image': image_name,
-                'c-x': x,
-                'c-y': y,
-                'radius': r,
-                'label': label
-            })
-
-    df = pd.DataFrame(rows, columns=['image', 'c-x', 'c-y', 'radius', 'label'])
-    return df
-
+def classify_by_hsv(hsv_features):
+    labels = []
+    for feature in hsv_features:
+        labels.append(classify_apple_color(feature[0], red_hue_range, green_hue_range))
+    return labels

@@ -5,7 +5,7 @@ from data_statistics import *
 from tqdm import tqdm
 import joblib
 
-knn = joblib.load('knn_model.pkl')
+knn = joblib.load('Scripts/knn_model.pkl')
 
 num_samples = 30  #sample for validation
 image_dir = 'data-collection/images'
@@ -13,7 +13,7 @@ all_images = [os.path.join(image_dir, img) for img in os.listdir(image_dir) if i
 
 #ingest annotations and combine in single df
 folder_path = "data-collection/annotations/"
-combined_df = process_csv_files(folder_path, knn)
+combined_df = process_csv_files(folder_path)
 print(combined_df.describe(include='all'))
 
 #seed shuffle for repeatability
@@ -33,8 +33,8 @@ os.makedirs(test_dir, exist_ok=True)
 #pre-process images
 vis_dir_feature = 'pre-processed/sample'
 sample_images = random.sample(all_images, num_samples) #sample for visualization
-roi_mask_train = process_and_save_images(train_images, train_dir, vis_dir_feature, sample_images)
-roi_mask_test = process_and_save_images(test_images, test_dir, vis_dir_feature, sample_images)
+roi_mask_train = process_and_save_images(train_images, train_dir, vis_dir_feature, sample_images, knn=knn)
+roi_mask_test = process_and_save_images(test_images, test_dir, vis_dir_feature, sample_images, knn=knn)
 sample_images = [img for img in os.listdir(vis_dir_feature) if img.endswith('.png')] #update sample paths
 
 no_masks_train = len([x for x in roi_mask_train.values() if x is None])
@@ -72,28 +72,25 @@ apple_indices = []  #for tracking the apple indices
 for img_path in tqdm(keypoints_dict.keys()):
     save_vis = img_path.split('/')[2] in sample_images
     # Segment apples in the image
-    apple_circles = segment_apples(img_path, keypoints=keypoints_dict[img_path], save_visualization=save_vis, save_dir=vis_dir_segment)
+    apple_circles = segment_apples(
+        img_path, keypoints=keypoints_dict[img_path], save_visualization=save_vis, save_dir=vis_dir_segment
+        )
 
     # Extract mean HSV values for each apple
     for circle in apple_circles:
-        mean_hsv = extract_mean_hsv(f"{image_dir}/{img_path.split('/')[2]}", circle)
-        hsv_features.append(mean_hsv)
+        hsv_array = extract_hsv(f"{image_dir}/{img_path.split('/')[2]}", circle)
+        hsv_features.append(hsv_array)
         apple_indices.append((img_path, circle))
 
     # Save the results in a dict
     detections[img_path] = apple_circles
 
-#Classification 
-labels, kmeans = perform_kmeans_clustering(hsv_features, n_clusters=3) #k-means clustering
-print("Cluster Centers (HSV):")
-for idx, center in enumerate(kmeans.cluster_centers_):
-    print(f"Cluster {idx}: H={center[0]:.2f}, S={center[1]:.2f}")
-cluster_labels = assign_cluster_labels(kmeans) # labels assignment
+#classification: re-use algorigthm from data_collection_apple_labels.py
+labels = classify_by_hsv(hsv_features)
 #update apple_labels
 apple_labels = {}
 for idx, (image_file, circle) in enumerate(apple_indices):
-    cluster_idx = labels[idx]
-    color_label = cluster_labels[cluster_idx]
+    color_label = labels[idx]
     image_name = image_file.split('/')[2]
     if image_name not in apple_labels:
         apple_labels[image_name.replace("RGBhr", "RGB")] = []
