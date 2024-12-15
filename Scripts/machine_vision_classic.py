@@ -18,23 +18,20 @@ print(combined_df.describe(include='all'))
 
 #seed shuffle for repeatability
 random.seed(42)
-random.shuffle(all_images)
+#random.shuffle(all_images)
 #do 70/30 split
-split_index = int(len(all_images) * 0.7)
-train_images = all_images[:split_index]
-test_images = all_images[split_index:]
+#split_index = int(len(all_images) * 0.7)
+#train_images = all_images[:split_index]
+#test_images = all_images[split_index:]
 
 #set directories for pre-processed images
-train_dir = 'pre-processed/train_images'
-test_dir = 'pre-processed/test_images'
-os.makedirs(train_dir, exist_ok=True)
-os.makedirs(test_dir, exist_ok=True)
+dir = 'pre-processed'
+os.makedirs(dir, exist_ok=True)
 
 #pre-process images
 vis_dir_feature = 'pre-processed/sample'
 sample_images = random.sample(all_images, num_samples) #sample for visualization
-roi_mask_train = process_and_save_images(train_images, train_dir, vis_dir_feature, sample_images, knn=knn)
-roi_mask_test = process_and_save_images(test_images, test_dir, vis_dir_feature, sample_images, knn=knn)
+roi_mask_train = process_and_save_images(all_images, dir, vis_dir_feature, sample_images, knn=knn)
 sample_images = [img for img in os.listdir(vis_dir_feature) if img.endswith('.png')] #update sample paths
 
 no_masks_train = len([x for x in roi_mask_train.values() if x is None])
@@ -44,13 +41,13 @@ print(f"out of: {len(roi_mask_train)} images, {no_masks_train} images have no Ma
 print(f"the ratio of images with no masks is: {no_masks_train/len(roi_mask_train):.2f}")
 
 #extract features
-image_paths = [os.path.join(train_dir, img) for img in os.listdir(train_dir) if img.endswith('.png')]
+image_paths = [os.path.join(dir, img) for img in os.listdir(dir) if img.endswith('.png')]
 vis_dir_feature = 'sample-features'
 keypoints_dict = {}
 all_descriptors = []
 
 for img_path in tqdm(image_paths):
-    save_vis = img_path.split('/')[2] in sample_images
+    save_vis = img_path.split('/')[1] in sample_images
     keypoints, descriptors = extract_and_filter_features(
         img_path, save_visualization=save_vis, save_dir=vis_dir_feature, mask=roi_mask_train[os.path.basename(img_path)]
     )
@@ -70,7 +67,7 @@ hsv_features = [] #mean hsv values for circles
 apple_indices = []  #for tracking the apple indices
 
 for img_path in tqdm(keypoints_dict.keys()):
-    save_vis = img_path.split('/')[2] in sample_images
+    save_vis = img_path.split('/')[1] in sample_images
     # Segment apples in the image
     apple_circles = segment_apples(
         img_path, keypoints=keypoints_dict[img_path], save_visualization=save_vis, save_dir=vis_dir_segment
@@ -78,7 +75,7 @@ for img_path in tqdm(keypoints_dict.keys()):
 
     # Extract mean HSV values for each apple
     for circle in apple_circles:
-        hsv_array = extract_hsv(f"{image_dir}/{img_path.split('/')[2]}", circle)
+        hsv_array = extract_hsv(f"{image_dir}/{img_path.split('/')[1]}", circle)
         hsv_features.append(hsv_array)
         apple_indices.append((img_path, circle))
 
@@ -91,7 +88,7 @@ labels = classify_by_hsv(hsv_features)
 apple_labels = {}
 for idx, (image_file, circle) in enumerate(apple_indices):
     color_label = labels[idx]
-    image_name = image_file.split('/')[2]
+    image_name = image_file.split('/')[1]
     if image_name not in apple_labels:
         apple_labels[image_name.replace("RGBhr", "RGB")] = []
     apple_labels[image_name.replace("RGBhr", "RGB")].append((circle, color_label))

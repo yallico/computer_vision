@@ -261,7 +261,7 @@ ax.set_zlabel('Brightness')
 
 ax.view_init(elev=30, azim=135)
 
-plt.title('Apple Pixels (HSV) KNN Predictions')
+#plt.title('Apple Pixels (HSV) KNN Predictions')
 #plt.show()
 
 plt.savefig("./Documentation/hsv_cone_with_apple_points.pdf", format='pdf', bbox_inches='tight')
