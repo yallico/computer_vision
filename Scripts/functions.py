@@ -104,9 +104,9 @@ def extract_and_filter_features(image_path, save_visualization=False, save_dir=N
     #SIFT detector, need to use in grid-search
     sift = cv2.SIFT_create(
         nfeatures=0,             #number of best features to retain (0 means no limit)
-        nOctaveLayers=4,         #number of layers in each octave
-        contrastThreshold=0.02,  #threshold for filtering out weak features
-        edgeThreshold=8         #threshold for edge detection
+        nOctaveLayers=8,         #number of layers in each octave
+        contrastThreshold=0.005,  #threshold for filtering out weak features
+        edgeThreshold=3         #threshold for edge detection
     )
     
     #detect
@@ -134,7 +134,7 @@ def extract_and_filter_features(image_path, save_visualization=False, save_dir=N
     
     return filtered_keypoints, filtered_descriptors
 
-def detect_circles(image, dp=1, minDist=30, param1=223, param2=30, minRadius=5, maxRadius=40):
+def detect_circles(image, dp=1, minDist=20, param1=220, param2=25, minRadius=5, maxRadius=40):
     """
     detect circles in an image using the Hough Circle Transform.
 
