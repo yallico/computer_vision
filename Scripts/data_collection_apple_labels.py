@@ -197,7 +197,7 @@ p = np.random.permutation(len(X))
 X, y = X[p], y[p]
 
 #fit K-NN on all data
-knn = KNeighborsClassifier(n_neighbors=30, algorithm='kd_tree')
+knn = KNeighborsClassifier(n_neighbors=20, algorithm='kd_tree')
 knn.fit(X, y)
 #save model
 joblib.dump(knn, 'Scripts/knn_model.pkl')
@@ -229,7 +229,7 @@ X = S_constrained * np.cos(H_rad)
 Y = S_constrained * np.sin(H_rad)
 Z = V_apple * 2
 
-fig = plt.figure(figsize=(10,8)) 
+fig = plt.figure(figsize=(8,6)) 
 ax = fig.add_subplot(111, projection='3d')
 
 theta = np.linspace(0, 2*np.pi, 72)  # angular resolution
@@ -250,7 +250,11 @@ rgb_values = hsv_to_rgb(hsv_col)
 # Plot the apple points inside the cone
 ax.scatter(X, Y, Z, c=rgb_values, alpha=0.9, s=1)
 
-ax.tick_params(axis='both', which='major', labelsize=9)
+ax.set_xlim(-1, 1)
+ax.set_ylim(-1, 1)
+ax.set_zlim(0, 2)
+
+ax.tick_params(axis='both', which='major', labelsize=10)
 ax.zaxis.set_major_locator(ticker.MaxNLocator(integer=True))
 ax.xaxis.set_major_locator(ticker.MaxNLocator(integer=True))
 ax.yaxis.set_major_locator(ticker.MaxNLocator(integer=True))
