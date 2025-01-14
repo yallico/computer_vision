@@ -36,7 +36,7 @@ sample_images = [img for img in os.listdir(vis_dir_feature) if img.endswith('.pn
 
 no_masks_train = len([x for x in roi_mask_train.values() if x is None])
 
-print("Image Pre-processing:")
+print("image pre-processing:")
 print(f"out of: {len(roi_mask_train)} images, {no_masks_train} images have no Mask/RIO")
 print(f"the ratio of images with no masks is: {no_masks_train/len(roi_mask_train):.2f}")
 
@@ -56,7 +56,7 @@ for img_path in tqdm(image_paths):
 
 no_keypoints = len([x for x in keypoints_dict.values() if len(x) == 0])
 
-print("Feature Extraction:")
+print("feature extraction:")
 print(f"out of: {len(keypoints_dict)} images, {no_keypoints} images have no keypoints detected.")
 print(f"the ratio of images with no keypoints is: {no_keypoints/len(keypoints_dict):.2f}")
 
@@ -68,21 +68,18 @@ apple_indices = []  #for tracking the apple indices
 
 for img_path in tqdm(keypoints_dict.keys()):
     save_vis = img_path.split('/')[1] in sample_images
-    # Segment apples in the image
     apple_circles = segment_apples(
         img_path, keypoints=keypoints_dict[img_path], save_visualization=save_vis, save_dir=vis_dir_segment
         )
-
-    # Extract mean HSV values for each apple
+    #get men hsv values for each apple
     for circle in apple_circles:
         hsv_array = extract_hsv(f"{image_dir}/{img_path.split('/')[1]}", circle)
         hsv_features.append(hsv_array)
         apple_indices.append((img_path, circle))
 
-    # Save the results in a dict
     detections[img_path] = apple_circles
 
-#classification: re-use algorigthm from data_collection_apple_labels.py
+#classificationm, reuse algorigthm from data_collection_apple_labels.py
 labels = classify_by_hsv(hsv_features)
 #update apple_labels
 apple_labels = {}
@@ -93,45 +90,40 @@ for idx, (image_file, circle) in enumerate(apple_indices):
         apple_labels[image_name.replace("RGBhr", "RGB")] = []
     apple_labels[image_name.replace("RGBhr", "RGB")].append((circle, color_label))
 
-#Get ground truth data
+#ground truth data
 ground_truth_counts = combined_df.groupby('image')['radius'].count().to_dict()
 ground_truth_apples = combined_df.groupby('image')[['c-x', 'c-y', 'radius']].apply(lambda x: x.values.tolist()).to_dict()
 ground_truth_labels = combined_df.groupby('image')['label'].apply(lambda x: x.values.tolist()).to_dict()
 
-#Metric evaluation: RSME
+#RSME
 per_image_rmse, total_rmse = calculate_rmse_counts(detections, ground_truth_counts)
 print(f"RMSE per image: {total_rmse}")   
 
-#Metric evaluation: IoU
-all_matches = {}           # {image_name: [(pred_idx, gt_idx), ...]}
-all_unmatched_pred = {}    # {image_name: [list_of_pred_idx]}
-all_unmatched_gt = {}      # {image_name: [list_of_gt_idx]}
-iou_results = {}           # {image_name: [IoU_values]}
+#iou
+all_matches = {}           
+all_unmatched_pred = {}    
+all_unmatched_gt = {}     
+iou_results = {}           
 labels_train = []
 labels_pred = []
 
 for image_name, predicted_apples in apple_labels.items():
-    predicted_circles = [p[0] for p in predicted_apples]  #extract just (x, y, r)
+    predicted_circles = [p[0] for p in predicted_apples]  
     gt_circles = ground_truth_apples.get(image_name, [])
-
-    # Run matching for this image
     matches, unmatched_pred, unmatched_gt = match_apples_by_min_distance(predicted_circles, gt_circles)
 
-    # Store results
     all_matches[image_name] = matches
     all_unmatched_pred[image_name] = unmatched_pred
     all_unmatched_gt[image_name] = unmatched_gt
 
-    #IoU
     iou_values = []
 
     for (pred_idx, gt_idx) in matches:
         pred_circle = predicted_circles[pred_idx]
         gt_circle = gt_circles[gt_idx]
-        #IoU
         iou_val = circle_iou(pred_circle, gt_circle)
         iou_values.append(iou_val)
-        # Classification: compare predicted_label vs ground_truth_labels
+        #compare predicted vs ground_truth_labels
         predicted_label = predicted_apples[pred_idx][1]
         true_label = ground_truth_labels[image_name][gt_idx]
         labels_train.append(true_label)
@@ -139,9 +131,6 @@ for image_name, predicted_apples in apple_labels.items():
     
     iou_results[image_name] = iou_values
 
-print(f"Mean IoU: {np.mean([np.mean(v) for v in iou_results.values() if len(v) > 0])}")
-
-#Metric evaluation: Classification
+print(f"mean Iou: {np.mean([np.mean(v) for v in iou_results.values() if len(v) > 0])}")
 class_metric = compute_classification_metrics(labels_pred, labels_train)
-
-print("Done")
+print("done")

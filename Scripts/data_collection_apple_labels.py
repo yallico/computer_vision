@@ -12,7 +12,7 @@ from sklearn.neighbors import KNeighborsClassifier
 from matplotlib.colors import hsv_to_rgb
 import joblib
 
-# paths
+#paths
 images_dir = './data-collection/images/'
 annotations_dir = './data-collection/annotations'
 
@@ -34,17 +34,15 @@ def classify_apple_color(hue_values, red_hue_range, green_hue_range):
 
     return label
 
-# hue ranges for red and green for opencv
+#hue ranges for red and green apples for opencv
 red_hue_range = [0, 25, 145, 180]
 green_hue_range = [35, 75]
 
-# sample images for validation
+#sample images for validation
 sampled_files = random.sample(os.listdir(annotations_dir), 15)
 
-# for each annotation file
 for annotation_file in os.listdir(annotations_dir):
     if annotation_file.endswith('.csv'):
-        # match image file using regex
         base_name = re.match(r"(.*?)(?:hr)?\.csv", annotation_file).group(1)
         image_path = None
         possible_image_paths = [
@@ -61,11 +59,11 @@ for annotation_file in os.listdir(annotations_dir):
             print(f"Image for {annotation_file} not found. Skipping.")
             continue
         
-        # load the image
+        #load
         img = cv2.imread(image_path)
         hsv_img = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
         
-        # load annotation data
+        #load annotations
         df = pd.read_csv(os.path.join(annotations_dir, annotation_file))
         labels = []
 
@@ -73,24 +71,24 @@ for annotation_file in os.listdir(annotations_dir):
         full_mask = np.zeros((img.shape[0], img.shape[1]), dtype=np.uint8)
 
         for _, row in df.iterrows():
-            # get co-ordinates for apple
+            #get coordinates for apple
             x_center, y_center = int(row['c-x']), int(row['c-y'])
             radius = int(row['radius'])
             
-            # mask circle for the circular region
+            #mask circle for the circular region
             mask = np.zeros((img.shape[0], img.shape[1]), dtype=np.uint8)
             cv2.circle(mask, (x_center, y_center), radius, 1, -1)
             full_mask[mask == 1] = 1
-            # get pixels from the circle
+            #get pixels from the circle
             apple_pixels_current = hsv_img[mask == 1]
-            apple_pixels.extend(apple_pixels_current) #for K-NN
+            apple_pixels.extend(apple_pixels_current) #for KNN training
             
-            # get brightness values
+            #get brightness values
             brightness_mean = np.mean(apple_pixels_current[:, 2])
             brightness_mean_values.append(brightness_mean)
             
             #label apply
-            if brightness_mean < 50 or brightness_mean > 223: #calculated after plot
+            if brightness_mean < 50 or brightness_mean > 223: #calculated after investigating plot
                 label = 'undefined'
                 undefined_count += 1
                 color = (128, 128, 128) 
@@ -112,7 +110,7 @@ for annotation_file in os.listdir(annotations_dir):
         df['label'] = labels
         #df.to_csv(os.path.join(annotations_dir, annotation_file), index=False) #uncomments to overwrite data
 
-        #non-apple pixels for K-NN (only works with a good computer, lots of ram needed)
+        #non-apple pixels for knn (only works with a good computer, lots of ram needed)
         # if len(non_apple_candidates[0]) > 0:
         #     non_apple_pix = hsv_img[non_apple_candidates[0], non_apple_candidates[1]]
         #     non_apple_pixels.extend(non_apple_pix)
@@ -133,10 +131,9 @@ for annotation_file in os.listdir(annotations_dir):
 # q1 = np.percentile(brightness_mean_values, 25)
 # q3 = np.percentile(brightness_mean_values, 75)
 # iqr = q3 - q1
-
 # note: we can't use IQR because its a bimodal distribution
 
-# Plot the brightness distribution with thresholds
+#plot the brightness distribution with thresholds
 plt.figure(figsize=(10, 6))
 sns.histplot(brightness_mean_values, bins=30, kde=True, color="skyblue", edgecolor="black")
 plt.axvline(50, color='red', linestyle='--', label='Low Threshold')
@@ -148,15 +145,15 @@ plt.grid(axis='y', linestyle='--', alpha=0.7)
 #plt.savefig("./Documentation/brightness_distribution.pdf", format='pdf', bbox_inches='tight')
 #plt.show()
 
-# Output the split between red and green apples
-print(f"Total red apples: {red_count}")
-print(f"Total green apples: {green_count}")
-print(f"Total undefined apples: {undefined_count}")
-print(f"Red to green split: {round(red_count/green_count,2)}")
+#split between red and green apples
+print(f"total red apples: {red_count}")
+print(f"total green apples: {green_count}")
+print(f"total undefined apples: {undefined_count}")
+print(f"red to green split: {round(red_count/green_count,2)}")
 
 output_dir = "./Sample/"
 
-# clear sample
+#clear sample
 for file in os.listdir(output_dir):
     file_path = os.path.join(output_dir, file)
     try:
@@ -172,23 +169,23 @@ for i, (name, processed_img) in enumerate(processed_images):
     cv2.imwrite(output_path, processed_img)
     print(f"Saved: {output_path}")
 
-print("Finished labelling data")
+print("finished labelling data")
 
-######K-NN and hsv analysis
+######KNN and hsv analysis
 
-desired_ratio = 20  # non-apple:apple
+desired_ratio = 20  # nonapple apple
 non_apple_count = len(non_apple_pixels)
-apple_needed = non_apple_count // desired_ratio  # integer division for simplicity
-print(f"Non-apple pixels available: {non_apple_count}")
-print(f"Apple pixels needed for 20:1 ratio: {apple_needed}")
+apple_needed = non_apple_count // desired_ratio 
+print(f"non-apple pixels available: {non_apple_count}")
+print(f"apple pixels needed for 20:1 ratio: {apple_needed}")
 
-# Downsample apple pixels
+#downsample apple pixels
 apple_pixels = np.array(apple_pixels)
 p = np.random.permutation(len(apple_pixels))
 apple_pixels = apple_pixels[p[:apple_needed]]
 non_apple_pixels = np.array(non_apple_pixels)
 
-#labels: 1 for apple, 0 for non-apple
+#labels
 X = np.vstack((apple_pixels, non_apple_pixels))
 y = np.array([1]*len(apple_pixels) + [0]*len(non_apple_pixels))
 
@@ -196,7 +193,7 @@ y = np.array([1]*len(apple_pixels) + [0]*len(non_apple_pixels))
 p = np.random.permutation(len(X))
 X, y = X[p], y[p]
 
-#fit K-NN on all data
+#fit knn on data
 knn = KNeighborsClassifier(n_neighbors=20, algorithm='kd_tree')
 knn.fit(X, y)
 #save model
@@ -209,21 +206,19 @@ v_vals = np.arange(0, 256, 5)
 H, S, V = np.meshgrid(h_vals, s_vals, v_vals, indexing='ij')
 grid_points = np.column_stack((H.flatten(), S.flatten(), V.flatten()))
 
-# Predict with K-NN
+#predict with knn model
 pred_labels = knn.predict(grid_points)
 
-# Extract only the points predicted as apple
+#extract only the points predicted as apple
 apple_points = grid_points[pred_labels == 1]
 non_apple_points = grid_points[pred_labels == 0]
 
-#normalize S and V to [0,1]
+#normalize S and V
 H_apple = apple_points[:,0]
 S_apple = apple_points[:,1] / 255.0
 V_apple = apple_points[:,2] / 255.0
-
 H_full = H_apple * 2  
-H_rad = np.deg2rad(H_full) #convert to radians
-#convert to Cartesian
+H_rad = np.deg2rad(H_full) 
 S_constrained = S_apple * V_apple
 X = S_constrained * np.cos(H_rad)
 Y = S_constrained * np.sin(H_rad)
@@ -231,38 +226,29 @@ Z = V_apple * 2
 
 fig = plt.figure(figsize=(8,6)) 
 ax = fig.add_subplot(111, projection='3d')
-
-theta = np.linspace(0, 2*np.pi, 72)  # angular resolution
-z = np.linspace(0, 2, 20)             # height resolution
-Theta, Z_mesh = np.meshgrid(theta, z)      # Create 2D grid for angle and height
-R = Z_mesh / 2  # Radius decreases as height decreases (cone shape)
+theta = np.linspace(0, 2*np.pi, 72)  #angular resolution
+z = np.linspace(0, 2, 20)             #height resolution
+Theta, Z_mesh = np.meshgrid(theta, z)   
+R = Z_mesh / 2
 X_mesh = R * np.cos(Theta)
 Y_mesh = R * np.sin(Theta)
 
 #plot
 ax.plot_surface(X_mesh, Y_mesh, Z_mesh, color='gray', alpha=0.1, edgecolor='black', linewidth=0.05)
-
-# Normalize H, S, V values for conversion
 H_norm = H_apple / 180.0 
 hsv_col = np.column_stack((H_norm, S_apple, V_apple))
 rgb_values = hsv_to_rgb(hsv_col)
-
-# Plot the apple points inside the cone
 ax.scatter(X, Y, Z, c=rgb_values, alpha=0.9, s=1)
-
 ax.set_xlim(-1, 1)
 ax.set_ylim(-1, 1)
 ax.set_zlim(0, 2)
-
 ax.tick_params(axis='both', which='major', labelsize=10)
 ax.zaxis.set_major_locator(ticker.MaxNLocator(integer=True))
 ax.xaxis.set_major_locator(ticker.MaxNLocator(integer=True))
 ax.yaxis.set_major_locator(ticker.MaxNLocator(integer=True))
-
 ax.set_xlabel('Hue')
 ax.set_ylabel('Saturation')
 ax.set_zlabel('Brightness')
-
 ax.view_init(elev=30, azim=135)
 
 #plt.title('Apple Pixels (HSV) KNN Predictions')
