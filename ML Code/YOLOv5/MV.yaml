@@ -1,0 +1,22 @@
+# Dataset configuration for YOLOv5
+
+# Dataset root directory
+path: your_dataset_path
+
+# Train/val/test sets
+train: train\images  # Path to training images (relative to 'path') ## The dataset folder is left in place (empty), this is the local path
+val: test\images     # Path to validation/test images (relative to 'path')
+#test: images\test    # Test set (optional, can be the same as 'val')
+
+# Number of classes
+nc: 3
+
+# Class names
+names:
+  0: red
+  1: green
+  2: undefined
+
+# Download script/URL (not applicable for this custom dataset, so left empty)
+download: |
+  echo "No external download required for this dataset."

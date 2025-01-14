@@ -1,0 +1,7 @@
+File paths populate here, required for model training, I've removed all but one record to demonstrate.
+[
+    {
+        "image": "IMAGE.png",
+        "ground_truth": "ASSOCIATED_TRAINED_GROUND_TRUTH.h5"
+    }
+]

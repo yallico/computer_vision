@@ -1,0 +1,18 @@
+# -----------------------Dataset Configure----------------------- #
+train: data/train
+test: data/test
+names: [ 'RED', 'GREEN', 'UNDEFINED' ] # class names
+
+# -----------------------Optimizer Configure----------------------- #
+ilr: 0.001  # Lowered learning rate from 0.01, should help with complex scenarios
+optimizer: SGD  # optimizer (SGD, AdamW)
+momentum: 0.937  # SGD momentum/AdamW beta1
+weight_decay: 0.0005  # optimizer weight decay 5e-4
+
+# -----------------------Data Augmentation----------------------- #
+hsv_h: 0.15 # Image HSV-Hue augmentation (fraction): Increased to 0.15 from 0.01 to account for changes in lighting
+hsv_s: 0.5 # Image HSV-Saturation augmentation (fraction)
+hsv_v: 0.4 # Image HSV-Value augmentation (fraction): Increased to 0.4 from 0.2 to account for shadows and bright spots
+scale: 0.6 # Image scale augmentation (+/- gain): increased to 0.6 from 0.5 to account for differing sizes
+fliplr: 0.5 # Image horizontal flip probability
+mosaic: 1.0 # Image mosaic augmentation probability (0/0.5/1.0)
